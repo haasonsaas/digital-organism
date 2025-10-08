@@ -1,103 +1,223 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useEffect, useRef, useState } from 'react';
+
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  hue: number;
+}
+
+export default function DigitalOrganism() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [mode, setMode] = useState<'attract' | 'repel' | 'flow'>('flow');
+  const particlesRef = useRef<Particle[]>([]);
+  const animationRef = useRef<number>();
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // Initialize particles
+    const particleCount = 2000;
+    particlesRef.current = Array.from({ length: particleCount }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 2,
+      vy: (Math.random() - 0.5) * 2,
+      life: Math.random(),
+      hue: Math.random() * 360,
+    }));
+
+    let time = 0;
+
+    const animate = () => {
+      time += 0.01;
+      
+      // Fade trail effect
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      particlesRef.current.forEach((p, i) => {
+        // Calculate distance to mouse
+        const dx = mousePos.x - p.x;
+        const dy = mousePos.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+
+        // Apply forces based on mode
+        if (mode === 'attract' && dist > 5) {
+          const force = Math.min(200 / dist, 5);
+          p.vx += Math.cos(angle) * force * 0.1;
+          p.vy += Math.sin(angle) * force * 0.1;
+        } else if (mode === 'repel' && dist < 200) {
+          const force = (200 - dist) / 200 * 3;
+          p.vx -= Math.cos(angle) * force;
+          p.vy -= Math.sin(angle) * force;
+        } else if (mode === 'flow') {
+          // Fluid flow field
+          const flowX = Math.sin(p.y * 0.01 + time) * 0.5;
+          const flowY = Math.cos(p.x * 0.01 + time) * 0.5;
+          p.vx += flowX;
+          p.vy += flowY;
+        }
+
+        // Particle interaction - flock behavior
+        particlesRef.current.forEach((other, j) => {
+          if (i === j) return;
+          const dx2 = other.x - p.x;
+          const dy2 = other.y - p.y;
+          const dist2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+          
+          if (dist2 < 30 && dist2 > 0) {
+            // Alignment
+            p.vx += (other.vx - p.vx) * 0.01;
+            p.vy += (other.vy - p.vy) * 0.01;
+            
+            // Separation
+            const angle2 = Math.atan2(dy2, dx2);
+            p.vx -= Math.cos(angle2) * 0.1;
+            p.vy -= Math.sin(angle2) * 0.1;
+          }
+        });
+
+        // Apply friction
+        p.vx *= 0.98;
+        p.vy *= 0.98;
+
+        // Update position
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // Wrap around edges
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height;
+        if (p.y > canvas.height) p.y = 0;
+
+        // Update color based on velocity
+        const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        p.hue = (p.hue + speed * 0.5) % 360;
+        p.life = Math.min(1, p.life + 0.01);
+
+        // Draw particle
+        const size = 2 + speed * 0.5;
+        const alpha = p.life * 0.8;
+        
+        ctx.fillStyle = `hsla(${p.hue}, 70%, 60%, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw connections
+        particlesRef.current.forEach((other, j) => {
+          if (j <= i) return;
+          const dx3 = other.x - p.x;
+          const dy3 = other.y - p.y;
+          const dist3 = Math.sqrt(dx3 * dx3 + dy3 * dy3);
+          
+          if (dist3 < 50) {
+            const lineAlpha = (1 - dist3 / 50) * 0.2;
+            ctx.strokeStyle = `hsla(${(p.hue + other.hue) / 2}, 70%, 60%, ${lineAlpha})`;
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(other.x, other.y);
+            ctx.stroke();
+          }
+        });
+      });
+
+      animationRef.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    const handleResize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [mousePos, mode]);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    setMousePos({ x: e.clientX, y: e.clientY });
+  };
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="relative w-screen h-screen bg-black overflow-hidden">
+      <canvas
+        ref={canvasRef}
+        onMouseMove={handleMouseMove}
+        className="absolute inset-0"
+      />
+      
+      <div className="absolute top-8 left-8 z-10 space-y-4">
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
+          Digital Organism
+        </h1>
+        
+        <div className="flex gap-2">
+          <button
+            onClick={() => setMode('flow')}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              mode === 'flow'
+                ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/50'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Flow
+          </button>
+          <button
+            onClick={() => setMode('attract')}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              mode === 'attract'
+                ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/50'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
           >
-            Read our docs
-          </a>
+            Attract
+          </button>
+          <button
+            onClick={() => setMode('repel')}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              mode === 'repel'
+                ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/50'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            Repel
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        <div className="text-gray-400 text-sm space-y-1">
+          <p>🌊 Flow: Organic fluid motion</p>
+          <p>🧲 Attract: Pull toward cursor</p>
+          <p>💨 Repel: Push away from cursor</p>
+        </div>
+      </div>
+
+      <div className="absolute bottom-8 right-8 text-gray-500 text-xs">
+        {particlesRef.current.length} particles
+      </div>
     </div>
   );
 }

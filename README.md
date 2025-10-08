@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Digital Organism
 
-## Getting Started
+A generative art piece built with Next.js and Canvas. Watch 2000 particles form emergent flocking behavior, respond to your cursor, and create mesmerizing patterns.
 
-First, run the development server:
+![Digital Organism](https://img.shields.io/badge/Next.js-14-black?style=for-the-badge&logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
+![Tailwind](https://img.shields.io/badge/Tailwind-3-38bdf8?style=for-the-badge&logo=tailwind-css)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## What It Is
+
+A particle system that exhibits emergent behavior through simple rules:
+
+- **2000 particles** moving independently
+- **Flocking behavior** - particles align with neighbors and maintain separation
+- **Flow field dynamics** - sine/cosine waves create organic motion
+- **Interactive modes** - attract, repel, or flow around your cursor
+- **Dynamic coloring** - hue shifts based on velocity
+- **Connection lines** - particles draw links to nearby neighbors
+
+## How It Was Made
+
+### Core Mechanics
+
+**Particle System**
+```typescript
+interface Particle {
+  x, y: number;      // Position
+  vx, vy: number;    // Velocity
+  life: number;      // Opacity fade-in
+  hue: number;       // Color (HSL)
+}
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Three Behavioral Modes**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Flow** - Particles follow a mathematical flow field:
+   ```typescript
+   flowX = sin(y * 0.01 + time) * 0.5
+   flowY = cos(x * 0.01 + time) * 0.5
+   ```
+   Creates organic, liquid-like motion
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. **Attract** - Gravitational pull toward cursor:
+   ```typescript
+   force = min(200 / distance, 5)
+   velocity += force * directionToCursor
+   ```
 
-## Learn More
+3. **Repel** - Push away from cursor:
+   ```typescript
+   force = (200 - distance) / 200 * 3
+   velocity -= force * directionFromCursor
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+**Flocking Algorithm** (inspired by Craig Reynolds' Boids)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+For each particle, check nearby particles (within 30px):
+- **Alignment** - Match neighbor velocities slightly
+- **Separation** - Push away to avoid overlap
+- **Cohesion** - Implicit through connection drawing
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Visual Effects**
 
-## Deploy on Vercel
+- **Trail effect** - Canvas fades with `rgba(0, 0, 0, 0.05)` instead of clearing
+- **Dynamic color** - Hue rotates based on speed: `hue = (hue + speed * 0.5) % 360`
+- **Connection lines** - Draw lines between particles <50px apart, alpha fades with distance
+- **Glow shadows** - Active mode button has matching shadow color
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Technical Implementation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Canvas Rendering**
+- 60 FPS animation loop with `requestAnimationFrame`
+- Particle size scales with velocity
+- HSLA colors for smooth gradients
+- Line alpha based on distance for depth effect
+
+**React Integration**
+- `useRef` for canvas and particles (avoid re-renders)
+- `useState` for mouse position and mode
+- `useEffect` for animation loop and cleanup
+- Client-side only (`
